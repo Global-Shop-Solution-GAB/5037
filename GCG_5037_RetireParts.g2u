@@ -1,0 +1,443 @@
+Program.Sub.ScreenSU.Start
+Gui.Form..Create
+Gui.Form..Caption("Retire Parts")
+Gui.Form..Size(20850,12450)
+Gui.Form..MinX(0)
+Gui.Form..MinY(0)
+Gui.Form..Position(7770,75)
+Gui.Form..BackColor(-2147483633)
+Gui.Form..MousePointer(0)
+Gui.Form..Event(UnLoad,Form_UnLoad)
+Gui.Form.picGSSLogo.Create(PictureBox)
+Gui.Form.picGSSLogo.Size(4980,1695)
+Gui.Form.picGSSLogo.Position(7350,60)
+Gui.Form.GsGrid.Create(GsGridControl)
+Gui.Form.GsGrid.Size(20775,10410)
+Gui.Form.GsGrid.Position(-45,1770)
+Gui.Form.ddlLoc.Create(DropDownList)
+Gui.Form.ddlLoc.Size(1095,330)
+Gui.Form.ddlLoc.Position(240,450)
+Gui.Form.lbl1.Create(Label,"Location",True,1095,255,0,240,180,True,0,"Arial",8,-2147483633,0)
+Gui.Form.ddlPL.Create(DropDownList)
+Gui.Form.ddlPL.Size(1095,330)
+Gui.Form.ddlPL.Position(1620,450)
+Gui.Form.lbl2.Create(Label,"Product Line",True,1410,255,0,1620,180,True,0,"Arial",8,-2147483633,0)
+Gui.Form.cmdFilter.Create(Button)
+Gui.Form.cmdFilter.Size(855,375)
+Gui.Form.cmdFilter.Position(240,975)
+Gui.Form.cmdFilter.Caption("Filter")
+Gui.Form.cmdFilter.Event(Click,cmdFilter_Click)
+Gui.Form.cmdRetire.Create(Button)
+Gui.Form.cmdRetire.Size(1815,375)
+Gui.Form.cmdRetire.Position(18540,210)
+Gui.Form.cmdRetire.Caption("Retire Selected")
+Gui.Form.cmdRetire.Event(Click,cmdRetire_Click)
+Gui.Form.cmdExport.Create(Button)
+Gui.Form.cmdExport.Size(1815,375)
+Gui.Form.cmdExport.Position(18540,720)
+Gui.Form.cmdExport.Caption("Export")
+Gui.Form.cmdExport.Event(Click,cmdExport_Click)
+Gui.Form.cmdRemove.Create(Button)
+Gui.Form.cmdRemove.Size(1815,375)
+Gui.Form.cmdRemove.Position(18540,1230)
+Gui.Form.cmdRemove.Caption("Remove Retire")
+Gui.Form.cmdRemove.Event(Click,cmdRemove_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+'Converting this project from a .g2c to a .g2u b/c the customer wanted to edit it. Will let them know if this program breaks due to somthing they changed then the fix will be billable. -SS 11-15-21
+
+V.Local..BulkDeclareString(sGssLogo, sIcon)
+'Function.ODBC.Connection!con.OpenCompanyConnection
+'F.ODBC.Connection!con.Close
+F.Intrinsic.String.Build("{0}\GAB\GAS\gss2.ico",V.Caller.PluginsDir,v.Local.sIcon)
+F.Intrinsic.String.Build("{0}\GAB\GAS\GAB_GSS_Logo_Green_Dash.png",V.Caller.PluginsDir,V.Local.sGssLogo)
+gui.Form.picGSSLogo.Picture(V.Local.sGssLogo)
+gui.Form..icon(V.Local.sIcon)
+
+'anchor
+F.Intrinsic.Control.CallSub(Anchor)
+
+'Populate ddl's
+F.Intrinsic.Control.CallSub(DDL)
+
+GUI.Form..Show
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.Form_UnLoad.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+GUI.Form..Visible(False)
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.End
+F.Intrinsic.Control.EndTry
+Program.Sub.Form_UnLoad.End
+
+Program.Sub.cmdFilter_Click.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+V.Local..BulkDeclareString(sLOC, sPL, sSql)
+'Function.ODBC.Connection!con.OpenCompanyConnection
+'F.ODBC.Connection!con.Close
+
+V.Local.sLOC.set(V.Screen.Form!ddlLoc.Text)
+V.Local.sPL.set(V.Screen.Form!ddlPL.Text)
+'check the user choose Location and Product Line
+F.Intrinsic.Control.If(V.Local.sLOC, =, "")
+	F.Intrinsic.UI.Msgbox("Choose Location")
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.If(V.Local.sPL, =, "")
+	F.Intrinsic.UI.Msgbox("Choose Product Line ")
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.If(V.DataTable.INV.Exists)
+	F.Data.DataTable.Close("INV")
+F.Intrinsic.Control.EndIf
+
+
+' Retired Date
+F.Intrinsic.String.Build("Select rTrim(Part)+'-'+rTrim(Location) as PartLoc, Location, Product_Line, Part, Description, QTY_OnHand, DATE_LAST_Usage, FLAG_INACTIVE From V_INVENTORY_MSTR Where LOCATION = '{0}' And PRODUCT_LINE = '{1}'", V.Local.sLOC, V.Local.sPL, V.Local.sSql)
+Function.ODBC.Connection!con.OpenCompanyConnection
+F.Data.DataTable.CreateFromSQL("INV", "con", V.Local.sSql, True)
+
+'created date
+F.Data.Datatable.AddColumn("INV", "Part_Create_Date", "Date")
+F.Data.Dictionary.CreateFromSQL("dict", "con", "Select rTrim(Part)+'-'+rTrim(Location) as PartLoc, Part_Create_Date From V_INVENTORY_MST3")
+F.Data.Dictionary.SetDefaultReturn("dict", "1/1/1900")
+F.Data.DataTable.FillFromDictionary("INV", "dict", "PartLoc", "Part_Create_Date")
+F.Data.Dictionary.Close("dict")
+
+'created date
+F.Data.Datatable.AddColumn("INV", "Date_Received", "Date")
+F.Data.Dictionary.CreateFromSQL("dict", "con", "Select rTrim(Part)+'-'+rTrim(Location) as PartLoc, Date_Received From V_PO_RECEIVER")
+F.Data.Dictionary.SetDefaultReturn("dict", "1/1/1900")
+F.Data.DataTable.FillFromDictionary("INV", "dict", "PartLoc", "Date_Received")
+F.Data.Dictionary.Close("dict")
+
+'retired date
+F.Data.Datatable.AddColumn("INV", "Date_Retired", "Date")
+F.Data.Dictionary.CreateFromSQL("dict", "con", "Select rTrim(Part)+'-'+rTrim(Location) as PartLoc, Date_Retired From GCG_Retired_Parts")
+F.Data.Dictionary.SetDefaultReturn("dict", "1/1/1900")
+F.Data.DataTable.FillFromDictionary("INV", "dict", "PartLoc", "Date_Retired")
+F.Data.Dictionary.Close("dict")
+
+'retired date for existing database
+F.Data.Datatable.AddColumn("INV", "Date_Retired2", "String")
+F.Data.Dictionary.CreateFromSQL("dict", "con", "Select rTrim(Part)+'-'+rTrim(Location) as PartLoc, Date_Retired as Date_Retired2 From GCG_Retired_Parts")
+F.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("INV", "dict", "PartLoc", "Date_Retired2")
+F.Data.Dictionary.Close("dict")
+
+
+F.ODBC.Connection!con.Close
+
+F.Intrinsic.Control.CallSub(BuildGrid)
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdFilter_Click.End
+
+Program.Sub.cmdExport_Click.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+V.Local..BulkDeclareString(sFileExport, sMsg)
+V.Local..BulkDeclareBoolean(bExcel, bFileLocked)
+
+F.Automation.MSExcel.CheckPresence(V.Local.bExcel)
+F.Intrinsic.Control.If(V.Local.bExcel)
+		F.Intrinsic.String.Build("{0}\RetiredParts.xlsx",V.Caller.LocalGssTempDir,V.Local.sFileExport)
+		F.Intrinsic.File.IsFileLocked(V.Local.sFileExport,V.Local.bFileLocked)
+		F.Intrinsic.Control.If(V.Local.bFileLocked)
+			F.Intrinsic.String.Build("File is already open. Please close and export again.{0}File: {1}",V.Ambient.NewLine,V.Local.sFileExport,V.Local.sMsg)
+			F.Intrinsic.UI.Msgbox(V.Local.sMsg,"File In Use")
+		F.Intrinsic.Control.Else
+			Gui.Form.GsGrid.Export(V.Local.sFileExport,"xlsx")
+			F.Intrinsic.Task.ShellExec(0,"",V.Local.sFileExport,"","",1)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("{0}\GAB_4135_Export.csv",V.Caller.LocalGssTempDir,V.Local.sFileExport)
+		F.Intrinsic.File.IsFileLocked(V.Local.sFileExport,V.Local.bFileLocked)
+		F.Intrinsic.Control.If(V.Local.bFileLocked)
+			F.Intrinsic.String.Build("File is already open. Please close and export again.{0}File: {1}",V.Ambient.NewLine,V.Local.sFileExport,V.Local.sMsg)
+			F.Intrinsic.UI.Msgbox(V.Local.sMsg,"File In Use")
+		F.Intrinsic.Control.Else
+			Gui.Form.GsGrid.Export(V.Local.sFileExport,"csv")
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.Task.ShellExec(0,"",V.Local.sFileExport,"","",1)
+	F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdExport_Click.End
+
+Program.Sub.cmdRetire_Click.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+F.Intrinsic.Control.If(V.DataTable.Retire.Exists)
+	F.Data.DataTable.Close("Retire")
+F.Intrinsic.Control.EndIf
+'select to view where select = 1
+F.Data.DataView.Create("INV", "INV_V", 22, "[Select] = 1 And  [Date_Retired] = '1/1/1900' ", "")
+F.Data.DataView.ToDataTable("INV", "INV_V", "Retire")
+F.Data.DataTable.SetValue("Retire", -1, "Date_Retired2", V.Ambient.Date)
+Function.ODBC.Connection!con.OpenCompanyConnection
+F.Data.DataTable.SaveToDB("Retire", "con", "GCG_Retired_Parts", "Part*!*Description*!*Location",256, "Part@!@Part*!*Description@!@Description*!*Location@!@Location*!*Date_Retired2@!@Date_Retired")
+F.ODBC.Connection!con.Close
+
+'re populate grid
+F.Intrinsic.Control.CallSub(cmdFilter_Click)
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdRetire_Click.End
+
+Program.Sub.DDL.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+Function.ODBC.Connection!con.OpenCompanyConnection
+'Location DDL
+F.Data.DataTable.CreateFromSQL("LOC", "con", "Select Distinct Location, Location From INVENTORY_MSTR", True)
+GUI.Form.ddlLoc.AddItems("DataTable", "LOC", "Location", "Location")
+'Product Line DDL
+F.Data.DataTable.CreateFromSQL("PL", "con", "Select Distinct Product_Line, Product_Line From INVENTORY_MSTR", True)
+GUI.Form.ddlPL.AddItems("DataTable", "PL", "Product_Line", "Product_Line")
+F.ODBC.Connection!con.Close
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.DDL.End
+
+Program.Sub.Anchor.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+GUI.Form.picGSSLogo.Anchor(1)
+GUI.Form.GsGrid.anchor(15)
+GUI.Form.cmdExport.Anchor(9)
+GUI.Form.cmdFilter.Anchor(5)
+GUI.Form.cmdRetire.Anchor(9)
+GUI.Form.cmdRemove.Anchor(9)
+GUI.Form.ddlLoc.Anchor(5)
+GUI.Form.ddlPL.Anchor(5)
+GUI.Form.lbl1.Anchor(5)
+GUI.Form.lbl2.Anchor(5)
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.Anchor.End
+
+Program.Sub.BuildGrid.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+V.Local.iC.Declare(Long, 0)
+
+'CheckBox Column
+F.Data.DataTable.AddColumn("INV", "Select", "bit", 0)
+
+Gui.Form.GsGrid.AddGridViewFromDataTable("Grid", "INV")
+
+'hide
+Gui.Form.GsGrid.SetColumnProperty("Grid", "PartLoc", "Visible",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Retired2", "Visible",False)
+
+'Read Only, Allow Edit
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Location", "AllowEdit",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Location", "ReadOnly", True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Product_Line", "AllowEdit",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Product_Line", "ReadOnly", True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part", "AllowEdit",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part", "ReadOnly", True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Description", "AllowEdit",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Description", "ReadOnly", True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "QTY_OnHand", "AllowEdit",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "QTY_OnHand", "ReadOnly", True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "DATE_LAST_Usage", "AllowEdit",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "DATE_LAST_Usage", "ReadOnly", True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "FLAG_INACTIVE", "AllowEdit",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "FLAG_INACTIVE", "ReadOnly", True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part_Create_Date", "AllowEdit",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part_Create_Date", "ReadOnly", True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Received", "AllowEdit",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Received", "ReadOnly", True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Retired", "AllowEdit",False)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Retired", "ReadOnly", True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Select", "AllowEdit",True)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Select", "ReadOnly", False)
+
+'Width
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Location", "MinWidth", 25)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Product_Line", "MinWidth",25)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part", "MinWidth", 100)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Description", "MinWidth", 200)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "QTY_OnHand", "MinWidth", 100)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "DATE_LAST_Usage", "MinWidth", 100)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "FLAG_INACTIVE", "MinWidth", 25)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part_Create_Date", "MinWidth", 85)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Select", "MinWidth", 25)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Received", "MinWidth", 85)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Retired", "MinWidth", 85)
+
+'Order
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Location", "VisibleIndex", 0)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Product_Line", "VisibleIndex", 1)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part", "VisibleIndex", 2)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Description", "VisibleIndex", 3)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "QTY_OnHand", "VisibleIndex", 4)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "DATE_LAST_Usage", "VisibleIndex", 5)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "FLAG_INACTIVE", "VisibleIndex", 6)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part_Create_Date", "VisibleIndex", 7)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Select", "VisibleIndex", 8)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Received", "VisibleIndex", 9)
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Retired", "VisibleIndex", 10)
+
+'Names
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Product_Line", "Caption", "Product Line")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "QTY_OnHand", "Caption", "OnHand QTY")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "DATE_LAST_Usage", "Caption", "Date Last Usage")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "FLAG_INACTIVE", "Caption", "Inactive Flag")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part_Create_Date", "Caption", "Part Created")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Received", "Caption","Last PO Receipt")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Retired", "Caption","Date Retired")
+
+'Format
+Gui.Form.GsGrid.SetColumnProperty("Grid", "DATE_LAST_Usage", "DisplayCustomDatetime", "d")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part_Create_Date", "DisplayCustomDatetime", "d")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Received", "DisplayCustomDatetime", "d")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Retired", "DisplayCustomDatetime", "d")
+
+'since we cant make not visible :(
+F.Intrinsic.Control.For(V.Local.iC, 0,V.DataTable.INV.RowCount--, 1)
+	F.Intrinsic.Control.If(V.DataTable.INV(V.Local.iC).DATE_LAST_Usage!FieldValTrim, =, "1/1/1900")
+		Gui.Form.GsGrid.SetCellAppearance("Grid", 6,  V.Local.iC,  "Fontsize", 1)
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.If(V.DataTable.INV(V.Local.iC).Part_Create_Date!FieldValTrim, =, "1/1/1900")
+		Gui.Form.GsGrid.SetCellAppearance("Grid", 8,  V.Local.iC,  "Fontsize", 1)
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.If(V.DataTable.INV(V.Local.iC).Date_Received!FieldValTrim, =, "1/1/1900")
+		Gui.Form.GsGrid.SetCellAppearance("Grid", 9,  V.Local.iC,  "Fontsize", 1)
+	F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.If(V.DataTable.INV(V.Local.iC).Date_Retired!FieldValTrim, =, "1/1/1900")
+		Gui.Form.GsGrid.SetCellAppearance("Grid", 10,  V.Local.iC,  "Fontsize", 1)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.iC)
+
+'Center header
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Location", "HeaderHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Product_Line", "HeaderHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part", "HeaderHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Description", "HeaderHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "QTY_OnHand", "HeaderHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "DATE_LAST_Usage", "HeaderHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "FLAG_INACTIVE", "HeaderHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part_Create_Date", "HeaderHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Select", "HeaderHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Received", "HeaderHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Retired", "HeaderHAlignment", "center")
+
+'cell layout
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Location", "CellHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Product_Line", "CellHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part", "CellHAlignment", "left")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Description", "CellHAlignment", "left")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "QTY_OnHand", "CellHAlignment", "right")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "DATE_LAST_Usage", "CellHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "FLAG_INACTIVE", "CellHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part_Create_Date", "CellHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Select", "CellHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Received", "CellHAlignment", "center")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Retired", "CellHAlignment", "center")
+
+'bold column titles
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Location", "HeaderFontBold", "true")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Product_Line", "HeaderFontBold", "true")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part", "HeaderFontBold", "true")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Description", "HeaderFontBold", "true")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "QTY_OnHand", "HeaderFontBold", "true")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "DATE_LAST_Usage", "HeaderFontBold", "true")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "FLAG_INACTIVE", "HeaderFontBold", "true")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Part_Create_Date", "HeaderFontBold", "true")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Select", "HeaderFontBold", "true")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Received", "HeaderFontBold", "true")
+Gui.Form.GsGrid.SetColumnProperty("Grid", "Date_Retired", "HeaderFontBold", "true")
+
+Gui.Form.GsGrid.SetGridViewProperty("Grid", "Enableappearanceoddrow", True)
+
+GUI.Form.GsGrid.MainView("Grid")
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.BuildGrid.End
+
+Program.Sub.cmdRemove_Click.Start
+F.Intrinsic.Control.Try
+V.Local.sError.Declare
+
+V.Local.ssql.Declare(String)
+V.Local.iC.Declare(Long)
+
+F.Intrinsic.Control.If(V.DataTable.Retire.Exists)
+	F.Data.DataTable.Close("Retire")
+F.Intrinsic.Control.EndIf
+'select to view where select = 1
+Function.ODBC.Connection!con.OpenCompanyConnection
+F.Data.DataView.Create("INV", "INV_V", 22, "[Select] = 1 And [Date_Retired2] <> '' ", "")
+F.Data.DataView.ToDataTable("INV", "INV_V", "Retire")
+F.Intrinsic.Control.For(V.Local.iC, 0,V.DataTable.Retire.RowCount--, 1)
+	F.Intrinsic.String.Build("Delete From GCG_Retired_Parts Where Part = '{0}' And Location = '{1}'", V.DataTable.Retire(V.Local.iC).Part!FieldValTrim, V.DataTable.Retire(V.Local.iC).Location!FieldVal, V.Local.ssql)
+	F.ODBC.Connection!con.Execute(V.Local.ssql)
+F.Intrinsic.Control.Next(V.Local.iC)
+F.ODBC.Connection!con.Close
+
+'re populate grid
+F.Intrinsic.Control.CallSub(cmdFilter_Click)
+
+F.Intrinsic.Control.Catch
+    F.Intrinsic.String.Build("Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}",V.Ambient.ScriptPath,V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Ambient.GABVersion,V.Local.sError)
+    F.Intrinsic.UI.Msgbox(V.Local.sError)
+    F.Intrinsic.Control.CallSub(Form_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.cmdRemove_Click.End
+
+
